@@ -1,0 +1,437 @@
+{
+  "name": "Weather forecast workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 0-6"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8a6d24c0-dd3d-45ae-a8e1-e716028ec77a",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://api.open-meteo.com/v1/forecast",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "latitude",
+              "value": "52.237049"
+            },
+            {
+              "name": "longitude",
+              "value": "21.017532"
+            },
+            {
+              "name": "daily",
+              "value": "precipitation_sum,weathercode"
+            },
+            {
+              "name": "timezone",
+              "value": "auto"
+            },
+            {
+              "name": "forecast_days",
+              "value": "1"
+            },
+            {
+              "name": "current_weather",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        0
+      ],
+      "id": "e082c791-aa2b-483d-b984-79dea5ef7acc",
+      "name": "Fetch Weather",
+      "executeOnce": false,
+      "retryOnFail": true,
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the JSON of each one\nconst current = $json.current_weather;\nconst daily   = $json.daily;\n\n// Full WMO weather-code map (codes 0–99)\nconst weatherCodes = {\n  0:  'Clear sky',\n  1:  'Mainly clear',\n  2:  'Partly cloudy',\n  3:  'Overcast',\n  45: 'Fog',\n  48: 'Rime fog',\n  51: 'Light drizzle',\n  53: 'Moderate drizzle',\n  55: 'Dense drizzle',\n  56: 'Light freezing drizzle',\n  57: 'Heavy freezing drizzle',\n  61: 'Slight rain',\n  63: 'Moderate rain',\n  65: 'Heavy rain',\n  66: 'Light freezing rain',\n  67: 'Heavy freezing rain',\n  71: 'Slight snowfall',\n  73: 'Moderate snowfall',\n  75: 'Heavy snowfall',\n  77: 'Snow grains',\n  80: 'Slight showers',\n  81: 'Moderate showers',\n  82: 'Violent showers',\n  85: 'Slight snow showers',\n  86: 'Heavy snow showers',\n  95: 'Thunderstorm',\n  96: 'Thunderstorm w/ slight hail',\n  99: 'Thunderstorm w/ heavy hail'\n};\n\nconst code        = daily.weathercode[0];\nconst weatherDesc = weatherCodes[code] ?? `Unknown (code ${code})`;\nconst precip      = daily.precipitation_sum[0] ?? 0;\nconst tempMax     = daily.temperature_2m_max?.[0] ?? current.temperature;\nconst tempMin     = daily.temperature_2m_min?.[0] ?? current.temperature;\nconst windMax     = daily.windspeed_10m_max?.[0]  ?? current.windspeed;\n\n// Severity flag: rain/snow/storm → critical\nconst isCritical  = precip > 0 || code >= 61;\n\nconst summary =\n  `🌤 Warsaw Daily Briefing\\n` +\n  `Weather: ${weatherDesc}\\n` +\n  `Temp: ${tempMin}°C – ${tempMax}°C  |  Wind: ${windMax} km/h\\n` +\n  `Precipitation: ${precip} mm` +\n  (isCritical ? '\\n⚠️ Adverse weather expected – take an umbrella!' : '');\n\nreturn [{\n  json: {\n    time:        current.time,\n    temperature: current.temperature,\n    tempMax,\n    tempMin,\n    windspeed:   windMax,\n    precipitation: precip,\n    weatherCode: code,\n    weather:     weatherDesc,\n    isCritical,\n    summary\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "26f29a31-9a33-4aba-97ae-590c20e82fdb",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0947d5d2-855c-43f4-9e33-f739cfd83871",
+              "leftValue": "={{ $json.isCritical }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        656,
+        0
+      ],
+      "id": "83b82d8c-436c-434e-8bde-3a54a3714b32",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1xFyQ2v6s_0cLRA3yGOeL4d_-txnH5UlKHO-JyG3-S4A",
+          "mode": "list",
+          "cachedResultName": "Weather forecast data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xFyQ2v6s_0cLRA3yGOeL4d_-txnH5UlKHO-JyG3-S4A/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1xFyQ2v6s_0cLRA3yGOeL4d_-txnH5UlKHO-JyG3-S4A/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "time",
+              "displayName": "time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "temperature",
+              "displayName": "temperature",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "windspeed",
+              "displayName": "windspeed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "precipitation",
+              "displayName": "precipitation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "weather",
+              "displayName": "weather",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary",
+              "displayName": "summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        848,
+        112
+      ],
+      "id": "e2ee2734-b8dd-4bf7-bb20-0e6db7167d22",
+      "name": "Append row in sheet",
+      "retryOnFail": false,
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "E5YTTpferoEQaXDc",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "chatId": "387434203",
+        "text": "={{ $json.summary }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        848,
+        -160
+      ],
+      "id": "a3da39f8-ba0e-4ec8-ad5b-7a26f1625dfb",
+      "name": "Send a text message",
+      "webhookId": "1ddbd121-2e84-4c27-92e4-62978aac4342",
+      "credentials": {
+        "telegramApi": {
+          "id": "Q5s3NaZ7vFXias01",
+          "name": "Telegram account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "errorMessage": "= {{ $json.error }}"
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        0
+      ],
+      "id": "27287d47-1c78-4746-af46-714c6db1ff99",
+      "name": "Stop and Error"
+    }
+  ],
+  "pinData": {
+    "Code in JavaScript": [
+      {
+        "json": {
+          "time": "2026-05-14T18:15",
+          "temperature": 16.9,
+          "tempMax": 16.9,
+          "tempMin": 16.9,
+          "windspeed": 16.2,
+          "precipitation": 0,
+          "weatherCode": 51,
+          "weather": "Light drizzle",
+          "isCritical": true,
+          "summary": "🌤 Warsaw Daily Briefing\nWeather: Light drizzle\nTemp: 16.9°C – 16.9°C  |  Wind: 16.2 km/h\nPrecipitation: 0.1 mm\n⚠️ Adverse weather expected – take an umbrella!"
+        }
+      }
+    ],
+    "Fetch Weather": [
+      {
+        "json": {
+          "latitude": 52.23009,
+          "longitude": 21.017075,
+          "generationtime_ms": 0.2346038818359375,
+          "utc_offset_seconds": 7200,
+          "timezone": "Europe/Warsaw",
+          "timezone_abbreviation": "GMT+2",
+          "elevation": 119,
+          "current_weather_units": {
+            "time": "iso8601",
+            "interval": "seconds",
+            "temperature": "°C",
+            "windspeed": "km/h",
+            "winddirection": "°",
+            "is_day": "",
+            "weathercode": "wmo code"
+          },
+          "current_weather": {
+            "time": "2026-05-14T18:15",
+            "interval": 900,
+            "temperature": 16.9,
+            "windspeed": 16.2,
+            "winddirection": 203,
+            "is_day": 1,
+            "weathercode": 2
+          },
+          "daily_units": {
+            "time": "iso8601",
+            "precipitation_sum": "mm",
+            "weathercode": "wmo code"
+          },
+          "daily": {
+            "time": [
+              "2026-05-14"
+            ],
+            "precipitation_sum": [
+              0
+            ],
+            "weathercode": [
+              51
+            ]
+          }
+        }
+      }
+    ],
+    "Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2026-05-14T12:36:20.351-04:00",
+          "Readable date": "May 14th 2026, 12:36:20 pm",
+          "Readable time": "12:36:20 pm",
+          "Day of week": "Thursday",
+          "Year": "2026",
+          "Month": "May",
+          "Day of month": "14",
+          "Hour": "12",
+          "Minute": "36",
+          "Second": "20",
+          "Timezone": "Central European Time (GMT + 01:00)"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Weather",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Weather": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "lBgVkKvCU7iiNbSa",
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "Europe/Warsaw",
+    "executionTimeout": -1
+  },
+  "versionId": "421c10a0-7219-4aba-b317-f183e19bcdd8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fe3c0dfb33afbc56878b53c08a34408f0209c6f1b17587d83864a209b52330cb"
+  },
+  "id": "IdQXZWxApnskZ3V0",
+  "tags": []
+}
